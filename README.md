@@ -204,13 +204,15 @@ sudo ovs-ofctl dump-flows s1
 
 ## 📸 Proof of Execution
 
-Include screenshots of:
-
-* Mininet topology
-* Controller logs
-* Ping output
-* curl / FTP output
-* Flow table output
+![Controller logs](output/1.png)
+![Topology (nodes)](output/2.png)
+![Pingall](output/3.png)
+![Servers running](output/4.png)
+![Traffic generation](output/5a.png)
+![](output/5b.png)
+![Flow table (sorted)](output/6.png)
+![Ping result](output/7.png)
+![iperf](output/8.png)
 
 ---
 
