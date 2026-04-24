@@ -161,31 +161,6 @@ h4 iperf -c h1
 sudo ovs-ofctl dump-flows s1
 ```
 
-### Sort by Priority (Important)
-
-```bash
-sudo ovs-ofctl dump-flows s1 | grep priority | sort -t= -k2 -nr
-```
-
----
-
-## 📊 Expected Flow Table Output
-
-```
-priority=50 → ICMP
-priority=40 → HTTP (8000)
-priority=30 → SMTP (2525)
-priority=20 → FTP (2121)
-priority=10 → Default
-```
-
-Also includes:
-
-```
-idle_timeout=20
-hard_timeout=60
-```
-
 ---
 
 ## 🧩 SDN Logic
