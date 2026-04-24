@@ -4,19 +4,19 @@
 
 ## 📖 Problem Statement
 
-Design and implement a **Software Defined Networking (SDN) based QoS controller** that prioritizes different types of network traffic using OpenFlow rules.
+Design and implement a **Software Defined Networking (SDN) based QoS controller** that prioritizes multiple types of network traffic using OpenFlow rules.
 
-The controller dynamically classifies traffic (HTTP, HTTPS, FTP, SMTP, ICMP) and assigns priority levels to optimize network performance.
+The controller dynamically classifies traffic (HTTP, FTP, SMTP, ICMP) and assigns priority levels to optimize performance.
 
 ---
 
 ## 🎯 Objectives
 
-* Identify multiple traffic types (HTTP, HTTPS, FTP, SMTP, ICMP)
-* Assign priority levels based on protocol importance
-* Install OpenFlow rules dynamically
+* Identify multiple traffic types (HTTP, FTP, SMTP, ICMP)
+* Assign priority levels using SDN controller
+* Install OpenFlow flow rules dynamically (match–action)
 * Implement **idle timeout (soft timeout)** and **hard timeout**
-* Measure latency and throughput impact
+* Measure and analyze performance (latency & throughput)
 
 ---
 
@@ -26,34 +26,36 @@ Traditional networks treat all packets equally. Using SDN:
 
 * Traffic is centrally controlled
 * Flow rules are dynamically installed
-* Critical traffic gets priority
+* Critical traffic gets higher priority
 
-### Priority Mapping
+### 📊 Priority Mapping
 
 | Protocol | Port | Priority     |
 | -------- | ---- | ------------ |
-| ICMP     | -    | 40 (Highest) |
-| HTTPS    | 443  | 30           |
-| HTTP     | 80   | 20           |
-| SMTP     | 25   | 15           |
-| FTP      | 21   | 10           |
-| Others   | -    | 5 (Lowest)   |
+| ICMP     | -    | 50 (Highest) |
+| HTTP     | 8000 | 40           |
+| SMTP     | 2525 | 30           |
+| FTP      | 2121 | 20           |
+| Others   | -    | 10 (Lowest)  |
 
 ---
 
 ## 🏗️ Network Topology
 
 ```
-h1 ---- s1 ---- h2
-          |
-         h3
+h1 ----\
+        \
+h2 ----- s1 ----- h4 (Client)
+        /
+h3 ----/
 ```
 
-* h1: Client
-* h2: Server
-* h3: Additional host
-* s1: OpenFlow switch
-* POX Controller: Controls traffic
+* h1 → HTTP Server
+* h2 → FTP Server
+* h3 → SMTP Server
+* h4 → Client (generates traffic)
+* s1 → OpenFlow Switch
+* POX → SDN Controller
 
 ---
 
@@ -72,7 +74,7 @@ h1 ---- s1 ---- h2
 ```bash
 sudo apt update
 sudo apt upgrade -y
-sudo apt install mininet openvswitch-switch git python3 -y
+sudo apt install mininet openvswitch-switch git python3 python3-pip -y
 cd ~
 git clone https://github.com/noxrepo/pox.git
 ```
@@ -81,105 +83,115 @@ git clone https://github.com/noxrepo/pox.git
 
 ## ▶️ Execution Steps
 
-### 1. Start Controller
+### 🔹 Step 1: Start Controller
 
 ```bash
 cd ~/pox
 ./pox.py qos_controller
 ```
 
-### 2. Start Mininet
+---
+
+### 🔹 Step 2: Start Mininet
 
 (Open new terminal)
 
 ```bash
-sudo mn --topo single,3 --controller remote
+sudo mn --topo single,4 --controller remote
 ```
 
 ---
 
-## 🧪 Testing Scenarios
+## 🖥️ Start Servers (Inside Mininet)
 
-### ✅ ICMP (Highest Priority)
+### 🌐 HTTP Server (h1)
 
 ```bash
-h1 ping h2
+h1 python3 -m http.server 8000 &
+```
+
+### 📁 FTP Server (h2)
+
+```bash
+sudo apt install python3-pyftpdlib -y
+h2 python3 -m pyftpdlib -p 2121 &
+```
+
+### 📧 SMTP Server (h3)
+
+```bash
+h3 python3 -m smtpd -c DebuggingServer -n localhost:2525 &
 ```
 
 ---
 
-### 🌐 HTTP (Port 80)
+## 🧪 Traffic Generation (Client: h4)
+
+### 🔥 Simultaneous Traffic
 
 ```bash
-h2 python3 -m http.server 80 &
-h1 wget http://10.0.0.2
+h4 curl http://10.0.0.1:8000 &
+h4 curl ftp://10.0.0.2:2121 &
+h4 ping -c 5 10.0.0.1 &
 ```
 
 ---
 
-### 🔐 HTTPS (Port 443)
+## 📊 Performance Measurement
+
+### Latency (ICMP)
 
 ```bash
-h2 python3 -m http.server 443 &
-h1 wget http://10.0.0.2:443
+h4 ping -c 5 h1
 ```
 
----
-
-### 📁 FTP (Port 21)
+### Throughput (TCP)
 
 ```bash
-sudo apt install python3-pyftpdlib
-h2 python3 -m pyftpdlib -p 21 &
-h1 ftp 10.0.0.2
-```
-
----
-
-### 📧 SMTP (Port 25)
-
-```bash
-h2 python3 -m smtpd -c DebuggingServer -n localhost:25 &
-```
-
----
-
-## 📊 Performance Metrics
-
-### Latency
-
-```bash
-h1 ping -c 5 h2
-```
-
-### Throughput
-
-```bash
-h1 iperf -c h2
+h4 iperf -c h1
 ```
 
 ---
 
 ## 🔍 Flow Table Verification
 
+### Show Flow Table
+
 ```bash
 sudo ovs-ofctl dump-flows s1
 ```
 
-### Expected Output
+### Sort by Priority (Important)
 
-* Flow entries with different priorities
-* Timeout values:
+```bash
+sudo ovs-ofctl dump-flows s1 | grep priority | sort -t= -k2 -nr
+```
 
-  * idle_timeout = 10
-  * hard_timeout = 30
+---
+
+## 📊 Expected Flow Table Output
+
+```
+priority=50 → ICMP
+priority=40 → HTTP (8000)
+priority=30 → SMTP (2525)
+priority=20 → FTP (2121)
+priority=10 → Default
+```
+
+Also includes:
+
+```
+idle_timeout=20
+hard_timeout=60
+```
 
 ---
 
 ## 🧩 SDN Logic
 
 * Controller listens for **PacketIn events**
-* Extracts protocol using TCP port numbers
+* Identifies protocol using TCP port numbers
 * Installs flow rules using **match-action**
 * Assigns:
 
@@ -192,22 +204,46 @@ sudo ovs-ofctl dump-flows s1
 ## ⏱️ Timeout Explanation
 
 * **Idle Timeout (Soft Timeout)**
-  Removes flow if inactive for a certain time
+  Removes flow if inactive for a specific time
 
 * **Hard Timeout**
   Removes flow after fixed duration regardless of activity
 
 ---
 
+## 🧪 Test Scenarios
+
+### ✅ Scenario 1: High Priority Traffic
+
+* ICMP → Lowest latency
+
+### ✅ Scenario 2: Medium Priority Traffic
+
+* HTTP → Faster than FTP
+
+### ✅ Scenario 3: Low Priority Traffic
+
+* FTP → Lower priority handling
+
+---
+
 ## 📸 Proof of Execution
 
-Include:
+Include screenshots of:
 
-* Mininet running screenshot
-* Controller logs showing protocol detection
-* Ping results (ICMP)
-* HTTP/HTTPS/FTP/SMTP execution
+* Mininet topology
+* Controller logs
+* Ping output
+* curl / FTP output
 * Flow table output
+
+---
+
+## 📈 Performance Analysis
+
+* High-priority traffic (ICMP) shows **lower latency**
+* Medium-priority traffic (HTTP) performs better than FTP
+* Flow rules dynamically adapt based on traffic type
 
 ---
 
@@ -216,35 +252,28 @@ Include:
 * Multi-protocol traffic classification
 * Dynamic flow rule installation
 * Priority-based QoS
-* Timeout-based flow control
-* Performance evaluation
+* Timeout-based flow management
+* Simultaneous traffic handling
 
 ---
 
 ## 🎤 Viva Explanation
 
-> “The controller classifies traffic based on TCP port numbers and assigns different priorities. Higher priority traffic like ICMP and HTTPS is processed faster. Flow rules include idle and hard timeouts to dynamically manage network behavior.”
+> “This project implements QoS using SDN by classifying traffic based on protocol ports. Each traffic type is assigned a priority, and flow rules are installed dynamically with timeouts. Performance is analyzed using latency and throughput measurements.”
 
 ---
 
 ## 📚 References
 
-* POX Documentation
+* POX Controller Documentation
 * Mininet Documentation
 * OpenFlow Specification
 
 ---
 
-## 👨‍💻 Author
-
-Name: [AKKINENI AKHIL]
-Project: Advanced QoS Priority Controller
-Course: SDN / Computer Networks
-
----
 
 ## 🎯 Conclusion
 
-This project demonstrates how SDN enables flexible and dynamic QoS management. By prioritizing traffic and applying timeouts, the network adapts efficiently to different workloads.
+This project demonstrates how SDN enables flexible QoS control by dynamically prioritizing traffic. Using OpenFlow rules with timeouts, the network adapts efficiently to different traffic types and improves overall performance.
 
 ---
