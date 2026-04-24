@@ -204,14 +204,29 @@ sudo ovs-ofctl dump-flows s1
 
 ## 📸 Proof of Execution
 
+# Controller logs
 ![Controller logs](output/1.png)
+
+# Topology (nodes)
 ![Topology (nodes)](output/2.png)
+
+# Pingall
 ![Pingall](output/3.png)
+
+# Servers running
 ![Servers running](output/4.png)
+
+# Traffic generation
 ![Traffic generation](output/5a.png)
 ![](output/5b.png)
+
+# Flow table
 ![Flow table (sorted)](output/6.png)
+
+# Ping result
 ![Ping result](output/7.png)
+
+# iperf
 ![iperf](output/8.png)
 
 ---
