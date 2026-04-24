@@ -247,11 +247,6 @@ sudo ovs-ofctl dump-flows s1
 * Timeout-based flow management
 * Simultaneous traffic handling
 
----
-
-## 🎤 Viva Explanation
-
-> “This project implements QoS using SDN by classifying traffic based on protocol ports. Each traffic type is assigned a priority, and flow rules are installed dynamically with timeouts. Performance is analyzed using latency and throughput measurements.”
 
 ---
 
