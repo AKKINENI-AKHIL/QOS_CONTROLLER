@@ -1,15 +1,25 @@
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
-from pox.lib.packet import ethernet, ipv4, tcp
 
 log = core.getLogger()
 
-def install_flow(event, priority, match, idle_timeout=10, hard_timeout=30):
+# -------- PRIORITY DEFINITIONS --------
+PRIORITY_ICMP = 50
+PRIORITY_HTTP = 40
+PRIORITY_SMTP = 30
+PRIORITY_FTP  = 20
+PRIORITY_DEFAULT = 10
+
+IDLE_TIMEOUT = 60
+HARD_TIMEOUT = 120
+
+
+def add_flow(event, priority, match):
     msg = of.ofp_flow_mod()
     msg.priority = priority
     msg.match = match
-    msg.idle_timeout = idle_timeout   # soft timeout
-    msg.hard_timeout = hard_timeout   # hard timeout
+    msg.idle_timeout = IDLE_TIMEOUT
+    msg.hard_timeout = HARD_TIMEOUT
     msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
     event.connection.send(msg)
 
@@ -17,53 +27,45 @@ def install_flow(event, priority, match, idle_timeout=10, hard_timeout=30):
 def _handle_ConnectionUp(event):
     log.info("Switch connected")
 
-    # Default rule
+    # Default rule (lowest priority)
     msg = of.ofp_flow_mod()
-    msg.priority = 0
+    msg.priority = PRIORITY_DEFAULT
     msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
     event.connection.send(msg)
 
 
 def _handle_PacketIn(event):
     packet = event.parsed
-    ip_packet = packet.find('ipv4')
 
-    if not ip_packet:
+    # -------- ICMP --------
+    if packet.find('icmp'):
+        match = of.ofp_match.from_packet(packet)
+        add_flow(event, PRIORITY_ICMP, match)
+        log.info("ICMP → priority %s", PRIORITY_ICMP)
         return
 
-    tcp_packet = packet.find('tcp')
+    # -------- TCP --------
+    tcp = packet.find('tcp')
 
-    if tcp_packet:
-        dst_port = tcp_packet.dstport
-
+    if tcp:
+        port = tcp.dstport
         match = of.ofp_match.from_packet(packet)
 
-        # 🔥 PRIORITY LOGIC
+        if port == 8000:  # HTTP
+            add_flow(event, PRIORITY_HTTP, match)
+            log.info("HTTP → priority %s", PRIORITY_HTTP)
 
-        if dst_port == 80:  # HTTP
-            install_flow(event, priority=20, match=match)
-            log.info("HTTP traffic - MEDIUM priority")
+        elif port == 2525:  # SMTP
+            add_flow(event, PRIORITY_SMTP, match)
+            log.info("SMTP → priority %s", PRIORITY_SMTP)
 
-        elif dst_port == 443:  # HTTPS
-            install_flow(event, priority=30, match=match)
-            log.info("HTTPS traffic - HIGH priority")
-
-        elif dst_port == 21:  # FTP
-            install_flow(event, priority=10, match=match)
-            log.info("FTP traffic - LOW priority")
-
-        elif dst_port == 25:  # SMTP
-            install_flow(event, priority=15, match=match)
-            log.info("SMTP traffic - MEDIUM priority")
+        elif port == 2121:  # FTP
+            add_flow(event, PRIORITY_FTP, match)
+            log.info("FTP → priority %s", PRIORITY_FTP)
 
         else:
-            install_flow(event, priority=5, match=match)
-            log.info("Other TCP traffic - LOWEST priority")
-
-    elif packet.find('icmp'):
-        match = of.ofp_match.from_packet(packet)
-        install_flow(event, priority=40, match=match)
-        log.info("ICMP - HIGHEST priority")
+            add_flow(event, PRIORITY_DEFAULT, match)
+            log.info("OTHER TCP → priority %s", PRIORITY_DEFAULT)
 
 
 def launch():
