@@ -1,33 +1,43 @@
-# QOS_CONTROLLER
-# 📌 Simple QoS Priority Controller using SDN (POX + Mininet)
+# 📌 Advanced QoS Priority Controller using SDN (POX + Mininet)
+
+---
 
 ## 📖 Problem Statement
 
-The objective of this project is to implement a **Quality of Service (QoS) Priority Controller** using Software Defined Networking (SDN). The system prioritizes certain types of network traffic over others using OpenFlow rules.
+Design and implement a **Software Defined Networking (SDN) based QoS controller** that prioritizes different types of network traffic using OpenFlow rules.
+
+The controller dynamically classifies traffic (HTTP, HTTPS, FTP, SMTP, ICMP) and assigns priority levels to optimize network performance.
 
 ---
 
 ## 🎯 Objectives
 
-* Identify different traffic types (ICMP, TCP)
-* Assign priority levels to traffic
-* Install flow rules dynamically using SDN controller
-* Measure performance impact (latency and throughput)
+* Identify multiple traffic types (HTTP, HTTPS, FTP, SMTP, ICMP)
+* Assign priority levels based on protocol importance
+* Install OpenFlow rules dynamically
+* Implement **idle timeout (soft timeout)** and **hard timeout**
+* Measure latency and throughput impact
 
 ---
 
 ## 🧠 Concept Overview
 
-In traditional networks, traffic handling is static. Using SDN, we can:
+Traditional networks treat all packets equally. Using SDN:
 
-* Dynamically control traffic
-* Assign priorities
-* Improve performance for critical packets
+* Traffic is centrally controlled
+* Flow rules are dynamically installed
+* Critical traffic gets priority
 
-In this project:
+### Priority Mapping
 
-* **ICMP (ping)** → High Priority
-* **TCP (iperf)** → Low Priority
+| Protocol | Port | Priority     |
+| -------- | ---- | ------------ |
+| ICMP     | -    | 40 (Highest) |
+| HTTPS    | 443  | 30           |
+| HTTP     | 80   | 20           |
+| SMTP     | 25   | 15           |
+| FTP      | 21   | 10           |
+| Others   | -    | 5 (Lowest)   |
 
 ---
 
@@ -35,12 +45,15 @@ In this project:
 
 ```
 h1 ---- s1 ---- h2
+          |
+         h3
 ```
 
-* h1: Sender
-* h2: Receiver
-* s1: OpenFlow Switch
-* POX Controller: Controls flow rules
+* h1: Client
+* h2: Server
+* h3: Additional host
+* s1: OpenFlow switch
+* POX Controller: Controls traffic
 
 ---
 
@@ -56,83 +69,90 @@ h1 ---- s1 ---- h2
 
 ## 🛠️ Installation Steps
 
-### 1. Install Dependencies
-
 ```bash
 sudo apt update
 sudo apt upgrade -y
 sudo apt install mininet openvswitch-switch git python3 -y
-```
-
-### 2. Download POX
-
-```bash
 cd ~
 git clone https://github.com/noxrepo/pox.git
 ```
-
-### 3. Create Controller File
-
-```bash
-cd ~/pox/pox
-nano qos_controller.py
-```
-
-Paste the controller code and save.
 
 ---
 
 ## ▶️ Execution Steps
 
-### Step 1: Run POX Controller
+### 1. Start Controller
 
 ```bash
 cd ~/pox
 ./pox.py qos_controller
 ```
 
-### Step 2: Run Mininet
+### 2. Start Mininet
 
 (Open new terminal)
 
 ```bash
-sudo mn --topo single,2 --controller remote
+sudo mn --topo single,3 --controller remote
 ```
 
 ---
 
-## 🧪 Testing & Validation
+## 🧪 Testing Scenarios
 
-### ✅ Test Case 1: High Priority Traffic (ICMP)
+### ✅ ICMP (Highest Priority)
 
 ```bash
 h1 ping h2
 ```
 
-* Expected: Faster response (low latency)
+---
+
+### 🌐 HTTP (Port 80)
+
+```bash
+h2 python3 -m http.server 80 &
+h1 wget http://10.0.0.2
+```
 
 ---
 
-### ✅ Test Case 2: Low Priority Traffic (TCP)
+### 🔐 HTTPS (Port 443)
 
 ```bash
-h2 iperf -s &
-h1 iperf -c h2
+h2 python3 -m http.server 443 &
+h1 wget http://10.0.0.2:443
 ```
 
-* Expected: Lower priority handling
+---
+
+### 📁 FTP (Port 21)
+
+```bash
+sudo apt install python3-pyftpdlib
+h2 python3 -m pyftpdlib -p 21 &
+h1 ftp 10.0.0.2
+```
+
+---
+
+### 📧 SMTP (Port 25)
+
+```bash
+h2 python3 -m smtpd -c DebuggingServer -n localhost:25 &
+```
 
 ---
 
 ## 📊 Performance Metrics
 
-### Latency Measurement
+### Latency
 
 ```bash
 h1 ping -c 5 h2
 ```
 
-### Throughput Measurement
+### Throughput
 
 ```bash
 h1 iperf -c h2
@@ -146,61 +166,85 @@ h1 iperf -c h2
 sudo ovs-ofctl dump-flows s1
 ```
 
-Expected:
+### Expected Output
 
-* High priority rule for ICMP
-* Low priority/default rule for other traffic
+* Flow entries with different priorities
+* Timeout values:
 
----
-
-## 📸 Proof of Execution
-
-Include the following screenshots:
-
-* Mininet topology running
-* Ping results
-* iperf results
-* Flow table output
-* Controller logs
+  * idle_timeout = 10
+  * hard_timeout = 30
 
 ---
 
 ## 🧩 SDN Logic
 
 * Controller listens for **PacketIn events**
-* Identifies packet type
+* Extracts protocol using TCP port numbers
 * Installs flow rules using **match-action**
-* Assigns priority dynamically
+* Assigns:
+
+  * Priority
+  * Idle timeout
+  * Hard timeout
+
+---
+
+## ⏱️ Timeout Explanation
+
+* **Idle Timeout (Soft Timeout)**
+  Removes flow if inactive for a certain time
+
+* **Hard Timeout**
+  Removes flow after fixed duration regardless of activity
+
+---
+
+## 📸 Proof of Execution
+
+Include:
+
+* Mininet running screenshot
+* Controller logs showing protocol detection
+* Ping results (ICMP)
+* HTTP/HTTPS/FTP/SMTP execution
+* Flow table output
 
 ---
 
 ## ✅ Functional Features
 
-* Traffic prioritization
+* Multi-protocol traffic classification
 * Dynamic flow rule installation
-* Performance analysis
-* Controller-switch interaction
+* Priority-based QoS
+* Timeout-based flow control
+* Performance evaluation
+
+---
+
+## 🎤 Viva Explanation
+
+> “The controller classifies traffic based on TCP port numbers and assigns different priorities. Higher priority traffic like ICMP and HTTPS is processed faster. Flow rules include idle and hard timeouts to dynamically manage network behavior.”
 
 ---
 
 ## 📚 References
 
-* POX Controller Documentation
+* POX Documentation
 * Mininet Documentation
 * OpenFlow Specification
 
 ---
 
-## 🎤 Conclusion
+## 👨‍💻 Author
 
-This project demonstrates how SDN can be used to implement QoS by dynamically controlling network traffic. High-priority traffic (ICMP) is handled efficiently compared to low-priority traffic (TCP), showcasing the flexibility of SDN.
+Name: [AKKINENI AKHIL]
+Project: Advanced QoS Priority Controller
+Course: SDN / Computer Networks
 
 ---
 
-## 👨‍💻 Author
+## 🎯 Conclusion
 
-Name: [Your Name]
-Project: Simple QoS Priority Controller
-Course: Computer Networks / SDN Lab
+This project demonstrates how SDN enables flexible and dynamic QoS management. By prioritizing traffic and applying timeouts, the network adapts efficiently to different workloads.
 
 ---
